@@ -141,6 +141,15 @@ class RELIONParticleData(ParticleData):
             if "rlnCoordinateZ" in list(val.keys()):
                 data_loop = key
                 break
+            # Check whether it's a Warp/M starfile and if so, edit parameter names.
+            if 'wrpCoordinateZ1' in list(val.keys()):
+                val.rename(columns={'wrpCoordinateX1': 'rlnCoordinateX',
+                                    'wrpCoordinateY1': 'rlnCoordinateY',
+                                    'wrpCoordinateZ1': 'rlnCoordinateZ',
+                                    'wrpAngleRot1': 'rlnAngleRot',
+                                    'wrpAngleTilt1': 'rlnAngleTilt',
+                                    'wrpAnglePsi1': 'rlnAnglePsi'}, inplace=True)
+                data_loop = key
 
         # Abort if none found
         if data_loop is None:
@@ -260,14 +269,18 @@ class RELIONParticleData(ParticleData):
 
         # Now make particles
         df.reset_index()
+
         for idx, row in df.iterrows():
             p = self.new_particle()
 
             # Name
             if names_present:
-                n = row["rlnTomoName"].split("_")
-                num = int(n[-1])
-                p["rlnTomoName"] = num
+                try:
+                    n = row["rlnTomoName"].split("_")
+                    num = int(n[-1])
+                    p["rlnTomoName"] = num
+                except Exception as e:
+                    p["rlnTomoName"] = int(''.join(filter(str.isdigit, row["rlnTomoName"])))
 
             # Position
             p["pos_x"] = row["rlnCoordinateX"]

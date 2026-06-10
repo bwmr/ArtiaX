@@ -1,0 +1,7 @@
+{
+  "extraPaths": [
+    "~/.local/share/ChimeraX/1.11/lib/python3.11/site-packages",
+    "/usr/lib/ucsf-chimerax/lib/python3.11/site-packages/",
+    "src",
+  ],
+}

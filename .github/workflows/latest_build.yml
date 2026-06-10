@@ -3,41 +3,61 @@ name: CI
 
 on:
   push:
-    branches: [ "devel_release" ]
-  pull_request:
-    branches: [ "devel_release" ]
-
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      # Check out devel_release branch
-      - uses: actions/checkout@v3
-        with:
-          ref: 'devel_release'
+      - uses: actions/checkout@v6
 
-      # Download and install ChimeraX
+      # Cache the installer so we don't re-download on every run
+      - name: Cache ChimeraX installer
+        id: cache-chimerax
+        uses: actions/cache@v4
+        with:
+          path: chimerax.deb
+          key: chimerax
+
+      - name: Download ChimeraX
+        if: steps.cache-chimerax.outputs.cache-hit != 'true'
+        run: wget -O chimerax.deb https://heibox.uni-heidelberg.de/f/c1ebfee729a24b3a8998/?dl=1
+
+
       - name: Install ChimeraX
         run: |
-          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1b7iKWNEZHVC2O7O1OYgKdJ7KmIkq_KIl' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1b7iKWNEZHVC2O7O1OYgKdJ7KmIkq_KIl" -O chimerax.deb && rm -rf /tmp/cookies.txt
           sudo apt-get update
           sudo apt-get install ./chimerax.deb
           chimerax --version
-        
+
       # Build the plugin
       - name: Build ArtiaX
         run: |
           chimerax --nogui --cmd "devel clean ${GITHUB_WORKSPACE} ; exit;"
           chimerax --nogui --cmd "devel build ${GITHUB_WORKSPACE} ; exit;"
-      
-      # Update the "latest build" release
-      - name: Update development release
-        uses: eine/tip@master
+
+      # Archive wheel as a run artifact (expires after 30 days)
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag: latest_build
-          rm: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: artiax-wheel
+          path: dist/*.whl
+          retention-days: 30
+
+      # Update the persistent "latest build" release — skipped on PRs
+      - name: Update development release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "ArtiaX ${{ github.ref_name }}"
+          prerelease: true
           files: dist/*.whl
+          token: ${{ secrets.GITHUB_TOKEN }}
